@@ -113,6 +113,8 @@ subroutine stack_sum(s, out, t1, t2, pick, type, n)
    select case (type_in(1:1))
       case ('l', 'L')
          call stack_sum_linear(s, pick_in, w1, w2, npts, out%trace)
+      case ('n', 'N')
+         call stack_sum_nthroot(s, pick_in, w1, w2, n_in, npts, out%trace)
       case default
          call stack_error('stack_sum: Unimplemented stack type "'//trim(type_in)//'"')
    end select
@@ -141,7 +143,8 @@ subroutine stack_sum_linear(s, pick, w1, w2, npts, out)
    integer :: i, j, iw1, iw2
 
    out = 0._rs
-!$omp parallel do default(none) shared(s, npts, out, pick, w1, w2) private(i, j, iw1, iw2)
+!$omp parallel do default(none) shared(s, npts, out, pick, w1, w2) &
+!$omp    private(i, j, iw1, iw2)
    do i = 1, size(s)
       iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
       iw2 = iw1 + npts - 1
@@ -155,6 +158,40 @@ subroutine stack_sum_linear(s, pick, w1, w2, npts, out)
 end subroutine stack_sum_linear
 !-------------------------------------------------------------------------------
 
+!===============================================================================
+subroutine stack_sum_nthroot(s, pick, w1, w2, n, npts, out)
+!===============================================================================
+! Perform an N-th root stack.
+!  INPUT:
+!     s(:)    : Array of SAC traces for stacking
+!     pick(:) : Times relative to which w1 and w2 are made (one per SAC trace)
+!     w1, w2  : Start and stop times of stack, relative to pick(:)
+!     n       : Power to which to raise stack
+!     npts    : Length of stacked trace
+!  OUTPUT:
+!     out(npts) : Array containing points of the stack
+!
+   type(SACtrace), intent(in) :: s(:)
+   real(rs), intent(in) :: pick(:), w1, w2
+   integer, intent(in) :: n, npts
+   real(rs), intent(out) :: out(npts)
+   integer :: i, j, iw1, iw2
+
+   out = 0._rs
+!$omp parallel do default(none) shared(s, npts, n, out, pick, w1, w2) &
+!$omp    private(i, j, iw1, iw2)
+   do i = 1, size(s)
+      iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
+      iw2 = iw1 + npts - 1
+      do j = iw1, iw2
+         out(j-iw1+1) = out(j-iw1+1) + &
+            sign(abs(s(i)%trace(j))**(1._rs/real(n)), s(i)%trace(j))
+      enddo
+   enddo
+!$omp end parallel do
+   out = sign(out**n, out)/size(s)
+end subroutine stack_sum_nthroot
+!-------------------------------------------------------------------------------
 
 !===============================================================================
 subroutine stack_check(s)
