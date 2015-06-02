@@ -29,6 +29,9 @@ module stack
    real(rs), parameter :: pi = real(4.d0*atan2(1.d0, 1.d0), rs)
    real(rs), parameter :: deg2km = 111.19_rs
 
+   ! Length parameters
+   integer, parameter :: STACK_CHAR_LEN = 30
+
    interface stack_allocate
       module procedure :: stack_allocate_r4_1d
    end interface stack_allocate
@@ -39,7 +42,7 @@ module stack
 contains
 
 !===============================================================================
-subroutine stack_sum(s, out, t1, t2, pick)
+subroutine stack_sum(s, out, t1, t2, pick, type, n)
 !===============================================================================
 ! Take an array of SAC traces and return the summed trace between times t1 and t2
 ! (if given), or just the whole trace.
@@ -50,15 +53,27 @@ subroutine stack_sum(s, out, t1, t2, pick)
 !              pick array is supplied
 !     pick(:): Array of pick times relative to which stack is performed.  Must be
 !              an array of size(s)
+!     type   : Character containing one of:
+!                 '[l]inear'        : Simple linear stack
+!                 '[n]throot'       : N-th root stack
+!                 '[p]haseweighted' : Phase-weighted stack
+!     n      : If 'nthroot' or 'phaseweighted' are chosed, this option determined
+!              the power for the stack.
 !  OUTPUT:
 !     out(:) : SACtrace containing the stack
 !
    type(SACtrace), intent(in) :: s(:)
    type(SACtrace), intent(inout) :: out
    real(rs), intent(in), optional :: t1, t2, pick(:)
+   character(len=*), intent(in), optional :: type
+   integer, intent(in), optional :: n
    real(rs) :: w1, w2
-   integer :: npts, i, j, iw1, iw2
+   integer :: npts
+   real(rs), allocatable :: pick_in(:)
+   character(len=STACK_CHAR_LEN) :: type_in
+   integer :: n_in
 
+   ! Basic checks on input
    call stack_check(s)
 
    ! Check input
@@ -75,32 +90,71 @@ subroutine stack_sum(s, out, t1, t2, pick)
       if (any(pick + t2 > s%e .or. pick - t1 < s%b)) &
          call stack_error('stack_sum: Window around picks is outside data range')
    endif
+   type_in = 'linear'
+   if (present(type)) type_in = type
+   n_in = 2
+   if (present(n)) n_in = n
 
    ! Make space for stack
    npts = int((w2 - w1)/s(1)%delta) + 1
    call f90sac_newtrace(npts, s(1)%delta, out)
-
    out%b = w1
    out%e = w2
 
+   ! Create internal pick array and populate
+   allocate(pick_in(npts))
+   if (present(pick)) then
+      pick_in = pick
+   else
+      pick_in = 0._rs
+   endif
+
+   ! Peform the stack
+   select case (type_in(1:1))
+      case ('l', 'L')
+         call stack_sum_linear(s, pick_in, w1, w2, npts, out%trace)
+      case default
+         call stack_error('stack_sum: Unimplemented stack type "'//trim(type_in)//'"')
+   end select
+
+   deallocate(pick_in)
+
+end subroutine stack_sum
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine stack_sum_linear(s, pick, w1, w2, npts, out)
+!===============================================================================
+! Perform a linear stack.
+!  INPUT:
+!     s(:)    : Array of SAC traces for stacking
+!     pick(:) : Times relative to which w1 and w2 are made (one per SAC trace)
+!     w1, w2  : Start and stop times of stack, relative to pick(:)
+!     npts    : Length of stacked trace
+!  OUTPUT:
+!     out(npts) : Array containing points of the stack
+!
+   type(SACtrace), intent(in) :: s(:)
+   real(rs), intent(in) :: pick(:), w1, w2
+   integer, intent(in) :: npts
+   real(rs), intent(out) :: out(npts)
+   integer :: i, j, iw1, iw2
+
+   out = 0._rs
 !$omp parallel do default(none) shared(s, npts, out, pick, w1, w2) private(i, j, iw1, iw2)
    do i = 1, size(s)
-      ! If using pick times, then the times are relative to this
-      if (present(pick)) then
-         iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
-         iw2 = iw1 + npts - 1
-      ! Otherwise use time relative to O marker
-      else
-         iw1 = nint((w1 - s(i)%b)/s(1)%delta) + 1
-         iw2 = nint((w2 - s(i)%b)/s(1)%delta) + 1
-      endif
+      iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
+      iw2 = iw1 + npts - 1
       do j = iw1, iw2
-         out%trace(j-iw1+1) = out%trace(j-iw1+1) + s(i)%trace(j)
+         out(j-iw1+1) = out(j-iw1+1) + s(i)%trace(j)
       enddo
    enddo
 !$omp end parallel do
-end subroutine stack_sum
+   out = out/size(s)
+
+end subroutine stack_sum_linear
 !-------------------------------------------------------------------------------
+
 
 !===============================================================================
 subroutine stack_check(s)
