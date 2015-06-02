@@ -61,26 +61,39 @@ subroutine stack_sum(s, out, t1, t2, pick)
 
    call stack_check(s)
 
-   ! Get limits and make space for stack
+   ! Check input
    w1 = maxval(s%b)
    w2 = minval(s%e)
    if (present(t1)) w1 = t1
    if (present(t2)) w2 = t2
    if (w2 <= w1) call stack_error('stack_sum: Start time must be before end time')
-   npts = int((w2 - w1)/s(1)%delta) + 1
-   call f90sac_newtrace(npts, s(1)%delta, out)
-   write(0,'(i0.1,1x,f0.3,1x,f0.3)') npts, w1, w2
    if (present(pick)) then
       if (size(pick) /= size(s)) &
          call stack_error('stack_sum: Pick array must be same length as number of traces')
+      if (any(pick > s%e .or. pick < s%b)) &
+         call stack_error('stack_sum: Picks must not be outside trace')
+      if (any(pick + t2 > s%e .or. pick - t1 < s%b)) &
+         call stack_error('stack_sum: Window around picks is outside data range')
    endif
-      
+
+   ! Make space for stack
+   npts = int((w2 - w1)/s(1)%delta) + 1
+   call f90sac_newtrace(npts, s(1)%delta, out)
+
    out%b = w1
    out%e = w2
-!$omp parallel do default(none) shared(s, out, w1, w2) private(i, j, iw1, iw2)
+
+!$omp parallel do default(none) shared(s, npts, out, pick, w1, w2) private(i, j, iw1, iw2)
    do i = 1, size(s)
-      iw1 = nint((w1 - s(i)%b)/s(1)%delta) + 1
-      iw2 = nint((w2 - s(i)%b)/s(1)%delta) + 1
+      ! If using pick times, then the times are relative to this
+      if (present(pick)) then
+         iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
+         iw2 = iw1 + npts - 1
+      ! Otherwise use time relative to O marker
+      else
+         iw1 = nint((w1 - s(i)%b)/s(1)%delta) + 1
+         iw2 = nint((w2 - s(i)%b)/s(1)%delta) + 1
+      endif
       do j = iw1, iw2
          out%trace(j-iw1+1) = out%trace(j-iw1+1) + s(i)%trace(j)
       enddo

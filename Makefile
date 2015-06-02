@@ -1,6 +1,9 @@
 FC = gfortran
-FFLAGS = -g -O2 -fcheck=all -fbacktrace -fopenmp
-LDFLAGS = -fopenmp
+FFLAGS = -g -O2 -fcheck=all -fbacktrace
+LDFLAGS = 
+# Use OpenMP
+FFLAGS += -fopenmp
+LDFLAGS += -fopenmp
 
 DEFS = -DFORCE_BIGENDIAN_SACFILES
 

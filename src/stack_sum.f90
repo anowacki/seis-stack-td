@@ -3,13 +3,15 @@ program stack_sum_prog
 
    use f90sac
    use stack
+   use, intrinsic :: iso_c_binding, only: C_FLOAT
 
    ! Maximum number of files
    integer, parameter :: nmax = 1000
    character(len=250) :: infile, outfile
    type(SACtrace) :: s(nmax), sum
+   real(C_FLOAT) :: picks(nmax), pick_temp
    integer :: iostat, n
-   logical :: window_set = .false.
+   logical :: window_set = .false., use_picks = .false.
 
    call get_args
 
@@ -17,9 +19,13 @@ program stack_sum_prog
    iostat = 0
    n = 0
    do while (iostat == 0)
-      read(*,*,iostat=iostat) infile
+      if (use_picks) then
+         read(*,*,iostat=iostat) infile, pick_temp
+      else
+         read(*,*,iostat=iostat) infile
+      endif
       if (iostat > 0) then
-         write(0,'(a,i0.1)') 'stack_sum: Error: Problem getting file from stdin, line ', &
+         write(0,'(a,i0.1)') 'stack_sum: Error: Problem getting file (and pick) from stdin, line ', &
             n + 1
          error stop
       endif
@@ -32,6 +38,7 @@ program stack_sum_prog
          error stop
       endif
       call f90sac_readtrace(infile, s(n))
+      if (use_picks) picks(n) = pick_temp
    enddo
 
    ! Stack over all the common data points by default
@@ -41,7 +48,11 @@ program stack_sum_prog
    endif
 
    ! Perform stack
-   call stack_sum(s(1:n), sum, t1=t1, t2=t2)
+   if (use_picks) then
+      call stack_sum(s(1:n), sum, t1=t1, t2=t2, pick=picks(1:n))
+   else
+      call stack_sum(s(1:n), sum, t1=t1, t2=t2)
+   endif
 
    ! Write out stack
    if (outfile == '-') then
@@ -55,11 +66,12 @@ program stack_sum_prog
 contains
    subroutine usage
       write(0,'(a)') &
-         'Usage: stack_sum (options) [outfile] < (list of SAC files)', &
+         'Usage: stack_sum (options) [outfile] < (list of SAC files (pick times))', &
          '   Read a list of SAC files on stdin and save the linear stack', &
          '   to <outfile>.', &
          '   If <outfile> is ''-'', write (t,amp) pairs to stdout', &
          'Options:', &
+         '   -p           : Use picks in column 2 of input', &
          '   -t [t1] [t2] : Output stack time, relative to'
       error stop
    end subroutine usage
@@ -73,6 +85,9 @@ contains
       do while (iarg < narg)
          call get_command_argument(iarg, arg)
          select case (arg)
+            case ('-p')
+               use_picks = .true.
+               iarg = iarg + 1
             case ('-t')
                window_set = .true.
                call get_command_argument(iarg + 1, arg)
