@@ -1,0 +1,9 @@
+# System files
+._*
+.DS_Store
+
+# Binaries
+bin/*
+obj/*
+*.mod
+*.o
