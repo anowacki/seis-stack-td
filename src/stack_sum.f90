@@ -7,10 +7,10 @@ program stack_sum_prog
 
    ! Maximum number of files
    integer, parameter :: nmax = 1000
-   character(len=250) :: infile, outfile
+   character(len=250) :: infile, outfile, type = 'linear'
    type(SACtrace) :: s(nmax), sum
    real(C_FLOAT) :: picks(nmax), pick_temp
-   integer :: iostat, n
+   integer :: iostat, n_stack
    logical :: window_set = .false., use_picks = .false.
 
    call get_args
@@ -49,9 +49,9 @@ program stack_sum_prog
 
    ! Perform stack
    if (use_picks) then
-      call stack_sum(s(1:n), sum, t1=t1, t2=t2, pick=picks(1:n))
+      call stack_sum(s(1:n), sum, t1=t1, t2=t2, type=type, n=n_stack, pick=picks(1:n))
    else
-      call stack_sum(s(1:n), sum, t1=t1, t2=t2)
+      call stack_sum(s(1:n), sum, t1=t1, t2=t2, type=type, n=n_stack)
    endif
 
    ! Write out stack
@@ -71,8 +71,11 @@ contains
          '   to <outfile>.', &
          '   If <outfile> is ''-'', write (t,amp) pairs to stdout', &
          'Options:', &
+         '   -n [n]       : For nthroot or phaseweighted, use root n', &
          '   -p           : Use picks in column 2 of input', &
-         '   -t [t1] [t2] : Output stack time, relative to'
+         '   -t [t1] [t2] : Output stack time, relative to', &
+         '   -type [type] : Choose from the following stack types:', &
+         '        [l]inear, [p]haseweighted, [n]throot'
       error stop
    end subroutine usage
 
@@ -85,6 +88,10 @@ contains
       do while (iarg < narg)
          call get_command_argument(iarg, arg)
          select case (arg)
+            case ('-n')
+               call get_command_argument(iarg + 1, arg)
+               read(arg,*) n_stack
+               iarg = iarg + 2
             case ('-p')
                use_picks = .true.
                iarg = iarg + 1
@@ -95,6 +102,9 @@ contains
                call get_command_argument(iarg + 2, arg)
                read(arg,*) t2
                iarg = iarg + 3
+            case ('-type')
+               call get_command_argument(iarg + 1, type)
+               iarg = iarg + 2
             case default
                write(0,'(a)') 'stack_sum: Error: Unrecognised option "' // trim(arg) // '"'
                error stop
