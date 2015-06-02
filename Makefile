@@ -1,9 +1,16 @@
 FC = gfortran
 FFLAGS = -g -O2 -fcheck=all -fbacktrace
 LDFLAGS = 
+
 # Use OpenMP
 FFLAGS += -fopenmp
 LDFLAGS += -fopenmp
+
+# Flags for FFTW3
+LIB = -L/opt/local/lib -lfftw3f
+INC = -I/opt/local/include
+FFLAGS += $(INC)
+LDFLAGS += $(LIB)
 
 DEFS = -DFORCE_BIGENDIAN_SACFILES
 

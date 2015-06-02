@@ -54,11 +54,11 @@ subroutine stack_sum(s, out, t1, t2, pick, type, n)
 !     pick(:): Array of pick times relative to which stack is performed.  Must be
 !              an array of size(s)
 !     type   : Character containing one of:
-!                 '[l]inear'        : Simple linear stack
+!                 '[l]inear'        : Simple linear stack [default]
 !                 '[n]throot'       : N-th root stack
 !                 '[p]haseweighted' : Phase-weighted stack
 !     n      : If 'nthroot' or 'phaseweighted' are chosed, this option determined
-!              the power for the stack.
+!              the power for the stack.  [Default 2]
 !  OUTPUT:
 !     out(:) : SACtrace containing the stack
 !
@@ -115,6 +115,8 @@ subroutine stack_sum(s, out, t1, t2, pick, type, n)
          call stack_sum_linear(s, pick_in, w1, w2, npts, out%trace)
       case ('n', 'N')
          call stack_sum_nthroot(s, pick_in, w1, w2, n_in, npts, out%trace)
+      case ('p', 'P')
+         call stack_sum_phaseweighted(s, pick_in, w1, w2, n_in, npts, out%trace)
       case default
          call stack_error('stack_sum: Unimplemented stack type "'//trim(type_in)//'"')
    end select
@@ -153,7 +155,7 @@ subroutine stack_sum_linear(s, pick, w1, w2, npts, out)
       enddo
    enddo
 !$omp end parallel do
-   out = out/size(s)
+   out = out/real(size(s))
 
 end subroutine stack_sum_linear
 !-------------------------------------------------------------------------------
@@ -189,8 +191,109 @@ subroutine stack_sum_nthroot(s, pick, w1, w2, n, npts, out)
       enddo
    enddo
 !$omp end parallel do
-   out = sign(out**n, out)/size(s)
+   out = sign(out**n, out)/real(size(s))
 end subroutine stack_sum_nthroot
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine stack_sum_phaseweighted(s, pick, w1, w2, nu, npts, out)
+!===============================================================================
+! Perform a phase-weighted stack.
+!  INPUT:
+!     s(:)    : Array of SAC traces for stacking
+!     pick(:) : Times relative to which w1 and w2 are made (one per SAC trace)
+!     w1, w2  : Start and stop times of stack, relative to pick(:)
+!     nu      : Power to which to raise coherency
+!     npts    : Length of stacked trace
+!  OUTPUT:
+!     out(npts) : Array containing points of the stack
+!
+! The phase-weighted stack is given by:
+!
+!     v(t) = (1/N) \Sigma_{j=1}^N s_j(t) abs[(1/N) \Sigma_{k=1}^N exp(i\Phi_k(t))]^\nu
+!
+! (Eq. 4 of Schimmel & Paulssen, GJI, 1997)
+! with N = number of traces, s_j(t) is the time-domain signal for the jth trace,
+! i is sqrt(-1), \Phi_k(t) is the instantaneous phase of the kth trace, and \nu
+! is the power parameter.  \Phi(t) is given by arg(s(t) + i*H(t)), where H(t)
+! is the Hilbert transform of the trace s(t).
+! We therefore must construct the Hilbert trace for each trace
+!
+   type(SACtrace), intent(in) :: s(:)
+   real(rs), intent(in) :: pick(:), w1, w2
+   integer, intent(in) :: nu, npts
+   real(rs), intent(out) :: out(npts)
+   real(rs), dimension(npts,size(s)) :: trace, hilbert, phase
+   real(rs) :: weight
+   integer :: n, i, j, iw1, iw2
+
+   n = size(s)
+
+   ! Create Hilbert traces
+   do i = 1, n
+      iw1 = nint((pick(i) + w1 - s(i)%b)/s(1)%delta) + 1
+      iw2 = iw1 + npts - 1
+      trace(:,i) = s(i)%trace(iw1:iw2)
+   enddo
+   hilbert = stack_hilbert(trace, n, npts)
+
+   ! Create array of phase at each point for each trace
+   phase = atan2(hilbert, trace)
+
+   ! Do the stack
+   out = 0._rs
+!$omp parallel do default(none) shared(phase, n, out, trace, nu, npts) &
+!$omp    private(i, j, weight)
+   do i = 1, n
+      do j = 1, npts
+         weight = sum(abs(phase(j,:))/real(n))
+         out(j) = out(j) + trace(j,i)*weight**nu
+      enddo
+   enddo
+!$omp end parallel do
+   out = out/real(n)
+
+end subroutine stack_sum_phaseweighted
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+function stack_hilbert(y, n, npts) result(h)
+!===============================================================================
+! Return the hilbert transformed version of y(npts,n), which contains n traces
+! of npts length.
+! This routine uses FFTW3, and for various reasons it is impractical to assume
+! that it has been compiled correctly to handle multithreading, so we do not use
+! OpenMP here.
+! Note that because we are using the real-to-complex transforms, we only have the
+! positive frequencies in c, so we can multiply everything by -i.
+!
+   use, intrinsic :: iso_c_binding
+   include 'fftw3.f03'
+   real(C_FLOAT), intent(in) :: y(npts,n)
+   integer, intent(in) :: n, npts
+   real(rs) :: h(npts,n), h_temp(npts), y_temp(npts)
+   complex(C_FLOAT) :: c(npts/2+1)
+   type(C_PTR) :: plan_fwd, plan_rev
+   integer(C_INT), parameter :: fftw_plan_type = FFTW_ESTIMATE
+   integer :: i
+
+   ! Create plans, which we can reuse if we use the same arrays
+   call sfftw_plan_dft_r2c_1d(plan_fwd, int(npts, kind=C_INT), y_temp, c, fftw_plan_type)
+   call sfftw_plan_dft_c2r_1d(plan_rev, int(npts, kind=C_INT), c, h_temp, fftw_plan_type)
+   ! Make Hilbert traces by multiplying the frequency-domain complex traces by -i
+   do i = 1, n
+      y_temp = y(:,i)
+      call sfftw_execute_dft_r2c(plan_fwd, y_temp, c)
+      c = c*complex(0._rs, -1._rs)
+      call sfftw_execute_dft_c2r(plan_rev, c, h_temp)
+      h(:,i) = h_temp
+   enddo
+   ! Normalise values back to original amplitude
+   h = h/real(npts)
+   ! Deassociate pointers
+   call sfftw_destroy_plan(plan_fwd)
+   call sfftw_destroy_plan(plan_rev)
+end function stack_hilbert
 !-------------------------------------------------------------------------------
 
 !===============================================================================
