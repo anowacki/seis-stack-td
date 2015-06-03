@@ -39,9 +39,99 @@ module stack
    end interface stack_allocate
 
    public :: &
-      stack_sum, stack_vespa_slow
+      stack_fk, stack_sum, stack_vespa_slow
 
 contains
+
+!===============================================================================
+subroutine stack_fk(s, t1, t2, smax, ds, out, pick, type, n, u)
+!===============================================================================
+! Perform f-k analysis on an array of SAC traces.  Search over a range of
+! slowness vectors with maximum magnitude smax in ds increments.
+!  INPUT:
+!     s(:)    : SACtrace array of input traces
+!     t1, t2  : Start and stop time window in s
+!     smax    : Maximum slowness magnitude in s/deg
+!     ds      : Slowness increment in s/deg
+!  INPUT (OPTIONAL):
+!     pick(:) : Array of pick times relative to which vespagram is made
+!     type    : Character determining stack type.  See stack_sum() for details.
+!     n       : Power of the stack; see stack_sum() for details.
+!  OUTPUT:
+!     out(:,:): Allocatable array of size(n,n), where n = 2*smax/ds + 1,
+!               containing the normalised beam power at each point over the time
+!               window of interest, which is the summed squared amplitudes.
+!  OUTPUT (OPTIONAL):
+!     u(:)    : Allocatable array containing the values of slowness in both
+!               x and y directions.
+!
+   type(SACtrace), intent(in) :: s(:)
+   real(rs), intent(in) :: t1, t2, smax, ds
+   real(rs), allocatable, intent(inout) :: out(:,:)
+   real(rs), intent(in), optional, dimension(size(s)) :: pick
+   character(len=*), intent(in), optional :: type
+   integer, intent(in), optional :: n
+   real(rs), intent(out), allocatable, optional :: u(:)
+   type(SACtrace) :: trace
+   real(rs), dimension(size(s)) :: pick_in, x, y, r, phi, delay
+   character(len=STACK_CHAR_LEN) :: type_in
+   real(rs) :: lon, lat, ux, uy
+   integer :: i, ix, iy, n_in, nu
+
+   ! Basic checks on input
+   call stack_check(s)
+
+   if (t2 <= t1) call stack_error('stack_fk: Start time must be before end time')
+   if (present(pick)) then
+      if (size(pick) /= size(s)) &
+         call stack_error('stack_fk: Pick array must be same length as number of traces')
+      if (any(pick > s%e .or. pick < s%b)) &
+         call stack_error('stack_fk: Picks must not be outside trace')
+      if (any(pick + t2 > s%e .or. pick - t1 < s%b)) &
+         call stack_error('stack_fk: Window around picks is outside data range')
+   endif
+   if (any(s%stlo == SAC_rnull .or. s%stla == SAC_rnull)) &
+      call stack_error('stack_fk: All stations must headers STLO and STLA filled')
+
+   ! Change defaults if necessary
+   type_in = 'linear'
+   if (present(type)) type_in = type
+   n_in = 2
+   if (present(n)) n_in = n
+   pick_in = 0._rs
+   if (present(pick)) pick_in = pick
+
+   ! Calculate mean coordinates and get array of cartesian coordinates in km,
+   ! relative to the mean point at (0,0)
+   call stack_calc_station_coords(s%stlo, s%stla, lon, lat, x, y, r, phi)
+
+   ! Calculate size of output and allocate
+   nu = int(2.*smax/ds) + 1
+   call stack_allocate(out, nu, nu)
+
+   ! Create stack at each slowness point
+   do iy = 1, nu
+      uy = real(iy-1)*ds - smax
+      uy = uy*s_deg2s_km
+      do ix = 1, nu
+         ux = real(ix-1)*ds - smax
+         ux = ux*s_deg2s_km
+         delay = pick_in - stack_station_delay(x, y, ux, uy)
+         call stack_sum(s, trace, t1=t1, t2=t2, delay=delay, type=type_in, n=n_in)
+         out(ix,iy) = sum(trace%trace**2)
+      enddo
+   enddo
+
+   out = out/maxval(out)
+
+   ! If requested, fill in the slowness axis
+   if (present(u)) then
+      call stack_allocate(u, nu)
+      u = [(real(i-1)*ds - smax, i = 1, nu)]
+   endif
+
+end subroutine stack_fk
+!-------------------------------------------------------------------------------
 
 !===============================================================================
 subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
@@ -110,7 +200,6 @@ subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
 
    ! Calculate mean coordinates and get array of cartesian coordinates in km,
    ! relative to the mean point at (0,0)
-   call stack_geog_mean(s%stlo, s%stla, lon, lat)
    call stack_calc_station_coords(s%stlo, s%stla, lon, lat, x, y, r, phi)
    ref_delta = stack_delta(s(1)%evlo, s(1)%evla, lon, lat)
    ref_baz = stack_azimuth(lon, lat, s(1)%evlo, s(1)%evla)
