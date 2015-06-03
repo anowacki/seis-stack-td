@@ -39,7 +39,7 @@ module stack
    end interface stack_allocate
 
    public :: &
-      stack_fk, stack_sum, stack_vespa_slow
+      stack_fk, stack_geog_mean, stack_sum, stack_vespa_slow
 
 contains
 
