@@ -19,21 +19,19 @@ O = obj
 S = src
 
 PROGS = \
-   $B/stack_sum
+   $B/stack_sum \
+   $B/stack_vespa
 
 MODS = \
    $O/f90sac.o \
    $O/stack.o
-
-OBJS = \
-   $O/stack_sum.o
 
 default: progs
 
 progs: $(PROGS)
 
 # Programs
-$B/%: $(MODS) $(OBJS)
+$B/%: $(MODS) $(OBJS) $O/%.o
 	$(FC) -o $@ $(LDFLAGS) $^
 
 # Build object files
