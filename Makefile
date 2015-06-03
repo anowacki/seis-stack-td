@@ -12,6 +12,9 @@ INC = -I/opt/local/include
 FFLAGS += $(INC)
 LDFLAGS += $(LIB)
 
+# Flags for NetCDF
+LIB += -lnetcdff
+
 DEFS = -DFORCE_BIGENDIAN_SACFILES
 
 B = bin
