@@ -8,7 +8,9 @@ usage() {
 	passed to the program, but do not use -o, as this is reserved
 	for the plotting script.
 	
-	$(stack_vespa)
+	Usage for stack_vespa
+	---------------------
+	$(stack_vespa 2>&1)
 	END
 	exit 1
 }
