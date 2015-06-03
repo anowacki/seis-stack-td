@@ -5,12 +5,14 @@ program stack_sum_prog
    use stack
    use, intrinsic :: iso_c_binding, only: C_FLOAT
 
+   implicit none
+
    ! Maximum number of files
    integer, parameter :: nmax = 1000
    character(len=250) :: infile, outfile, type = 'linear'
    type(SACtrace) :: s(nmax), sum
-   real(C_FLOAT) :: picks(nmax), pick_temp
-   integer :: iostat, n_stack
+   real(C_FLOAT) :: picks(nmax), pick_temp, t1, t2
+   integer :: i, n, iostat, n_stack
    logical :: window_set = .false., use_picks = .false.
 
    call get_args
