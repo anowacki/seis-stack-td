@@ -22,6 +22,7 @@ O = obj
 S = src
 
 PROGS = \
+   $B/stack_fk \
    $B/stack_sum \
    $B/stack_vespa
 
