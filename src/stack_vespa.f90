@@ -32,7 +32,7 @@ program stack_vespa_prog
          read(*,*,iostat=iostat) infile
       endif
       if (iostat > 0) then
-         write(0,'(a,i0.1)') 'stack_sum: Error: Problem getting file (and pick) from stdin, line ', &
+         write(0,'(a,i0.1)') 'stack_vespa: Error: Problem getting file (and pick) from stdin, line ', &
             n + 1
          error stop
       endif
@@ -40,7 +40,7 @@ program stack_vespa_prog
       if (infile == "") cycle
       n = n + 1
       if (n > nmax) then
-         write(0,'(2(a,i0.1))') 'stack_sum: Error: Number of traces (', n, &
+         write(0,'(2(a,i0.1))') 'stack_vespa: Error: Number of traces (', n, &
             ') greater than precompiled limits (', nmax, ')'
          error stop
       endif
