@@ -17,6 +17,7 @@ program stack_fk_prog
    type(SACtrace) :: s(nmax)
    real(C_FLOAT) :: picks(nmax), pick_temp, t1, t2, smax, ds
    real(C_FLOAT), allocatable :: fk(:,:), u(:)
+   real(C_FLOAT) :: lon, lat, gcarc, baz, evdp
    integer :: i, j, n, iostat, n_stack, nu
    logical :: use_picks = .false., write_ncf = .false.
 
@@ -59,6 +60,8 @@ program stack_fk_prog
 
    ! Write out stack
    if (write_ncf) then
+      ! Get info for comments
+      call stack_array_geography(s(1:n), lon, lat, gcarc, baz, evdp)
       call write_netcdf_file
    else
       do i = 1, nu
@@ -135,6 +138,7 @@ contains
 
    subroutine write_netcdf_file
       integer :: ncid, ux_dimid, uy_dimid, ux_varid, uy_varid, a_varid
+      character(len=250) :: comment
 
       call check_ncf(nf90_create(trim(file), NF90_CLOBBER, ncid))
 
@@ -159,8 +163,9 @@ contains
       ! Add comments about data
       call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'title', &
          'FK response created by stack_fk'))
-      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'comment', &
-         'Stack_type: ' // trim(type)))
+      write(comment, '(5(a,f0.6))') 'Stack_type: ' // trim(type) // ' Mean_lon: ', lon, &
+         ' Mean_lat: ', lat, ' Mean_gcarc: ', gcarc, ' Mean_baz: ', baz, ' evdp: ', evdp
+      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'source', trim(comment)))
       ! Finish data description
       call check_ncf(nf90_enddef(ncid))
 
