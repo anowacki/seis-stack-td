@@ -39,7 +39,7 @@ module stack
    end interface stack_allocate
 
    public :: &
-      stack_fk, stack_geog_mean, stack_sum, stack_vespa_slow
+      stack_array_geography, stack_fk, stack_geog_mean, stack_sum, stack_vespa_slow
 
 contains
 
@@ -521,6 +521,22 @@ function stack_hilbert(y, n, npts) result(h)
    call sfftw_destroy_plan(plan_fwd)
    call sfftw_destroy_plan(plan_rev)
 end function stack_hilbert
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine stack_array_geography(s, lon, lat, gcarc, baz, evdp)
+!===============================================================================
+! Return the mean location, distance and some other information about the
+! stack for this event.
+!
+   type(SACtrace), intent(in) :: s(:)
+   real(rs), intent(out) :: lon, lat, gcarc, baz, evdp
+
+   call stack_geog_mean(s%stlo, s%stla, lon, lat)
+   gcarc = stack_delta(s(1)%evlo, s(1)%evla, lon, lat)
+   baz = stack_azimuth(lon, lat, s(1)%evlo, s(1)%evla)
+   evdp = s(1)%evdp
+end subroutine stack_array_geography
 !-------------------------------------------------------------------------------
 
 !===============================================================================
