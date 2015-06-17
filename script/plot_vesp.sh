@@ -69,8 +69,9 @@ trap 'rm -f "$CPT" "$FIG" "$GRD"' EXIT
 stack_vespa -o "$GRD" "$@" || { echo "Error running stack_vespa" >&2; exit 1; }
 
 # Get info from grid file
-read t1 t2 dt s1 s2 ds <<< $(grdinfo "$GRD" |
-	awk '/x_min/{print $3,$5,$7} /y_min/{print $3,$5,$7}')
+read gcarc baz evdp t1 t2 dt s1 s2 ds <<< $(grdinfo "$GRD" |
+	awk '/Command:/{print $(NF-4), $(NF-2), $NF}
+		/x_min/{print $3,$5,$7} /y_min/{print $3,$5,$7}')
 read lt ls <<< $(echo $t1 $t2 $s2 $s2 | awk '{printf("%f %f", ($2-$1)/5, ($4-$3)/4)}')
 makecpt -Z -Cpolar -T-1/1/0.1 > "$CPT"
 
@@ -83,8 +84,6 @@ grdimage "$GRD" -JX8c/6c -R$t1/$t2/$s1/$s2 -C"$CPT" -P \
 if [ "$phases" ]; then
 	command -v taup_time >/dev/null 2>&1 ||
 		{ echo "Cannot find taup_time; no phases will be plotted"; break; }
-	read gcarc baz evdp <<< $(grdinfo "$GRD" |
-		awk '/Command:/{print $(NF-4), $(NF-2), $NF}')
 	list=$(taup_time -ph $phases -h $evdp -deg $gcarc | awk 'NR>=6')
 	echo "$list" | while read gcarc_taup evdp_taup phase time slowness takeoff incident \
 			distance blank pure_name; do
@@ -96,6 +95,10 @@ fi
 for ((i=0; i<${#name_list[@]}; i++)); do
 	plot_annot_cross "${time_list[i]}" "${slow_list[i]}" "${name_list[i]}"
 done || die "Error plotting annotations"
+
+# Add plot information at the top
+printf "%f %f 10 0 0 BL @~D@~ = %0.1f@~\\260@~  baz = %0.1f@~\\260@~\n" $t1 $s2 $gcarc $baz |
+	pstext -J -R -D0c/0.2c -N -O -K >> "$FIG"
 
 # Finish postscript
 psxy -J -R -T -O >> "$FIG"
