@@ -80,7 +80,9 @@ ls=2
 stack_fk -o "$GRD" "$@" || { echo "Error running stack_fk" >&2; exit 1; }
 
 # Get info from grid file
-read smin smax ds <<< $(grdinfo "$GRD" | awk '/x_min/{print $3,$5,$7}')
+read gcarc baz evdp smin smax ds <<< $(grdinfo "$GRD" |
+	awk '/Command:/{print $(NF-4),$(NF-2),$NF}
+         /x_min/{print $3,$5,$7}')
 makecpt -Z -Chaxby -I -T0/1/0.05 > "$CPT" 2>/dev/null
 
 # Plot power
@@ -91,8 +93,6 @@ grdimage "$GRD" -JX8c/8c -R$smin/$smax/$smin/$smax -C"$CPT" -P -K \
 if [ "$phases" ]; then
 	command -v taup_time >/dev/null 2>&1 ||
 		{ echo "Cannot find taup_time; no phases will be plotted"; break; }
-	read gcarc baz evdp <<< $(grdinfo "$GRD" |
-		awk '/Command:/{print $(NF-4), $(NF-2), $NF}')
 	list=$(taup_time -ph $phases -h $evdp -deg $gcarc | awk 'NR>=6')
 	echo "$list" | while read gcarc_taup evdp_taup phase time slowness takeoff incident \
 			distance blank pure_name; do
@@ -116,5 +116,13 @@ awk -v smax=$smax 'BEGIN {
 		print ">"
 		for (r=0; r<=100; r+=100) print r*sin(theta), r*cos(theta)
 	}
-	}' | psxy -J -R -m -W0.5p,- -O >> "$FIG"
+	}' | psxy -J -R -m -W0.5p,- -O -K >> "$FIG"
+
+# Add plot information at the top
+printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f\n" -$smax $smax $gcarc $baz |
+	pstext -J -R -D0c/0.2c -N -O -K >> "$FIG"
+
+# Finish off postscript
+psxy -J -R -T -O >> "$FIG"
+
 gv "$FIG"
