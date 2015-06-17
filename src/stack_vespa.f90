@@ -17,6 +17,7 @@ program stack_vespa_prog
    type(SACtrace) :: s(nmax)
    real(C_FLOAT) :: picks(nmax), pick_temp, t1, t2, s1, s2, ds
    real(C_FLOAT), allocatable :: vesp(:,:), time(:), slowness(:)
+   real(C_FLOAT) :: lon, lat, gcarc, baz, evdp
    integer :: i, j, n, iostat, n_stack, nt, ns
    logical :: use_picks = .false., write_ncf = .false.
 
@@ -62,6 +63,8 @@ program stack_vespa_prog
 
    ! Write out stack
    if (write_ncf) then
+      ! Get info for comments
+      call stack_array_geography(s(1:n), lon, lat, gcarc, baz, evdp)
       call write_netcdf_file
    else
       do i = 1, ns
@@ -74,7 +77,7 @@ program stack_vespa_prog
 contains
    subroutine usage
       write(0,'(a)') &
-         'Usage: stack_vespa [s1] [s2] [ds] [t1] [t2] (options) < (list of SAC files (pick times))', &
+         'Usage: stack_vespa (options) [s1] [s2] [ds] [t1] [t2] < (list of SAC files (pick times))', &
          '   Read a list of SAC files on stdin and write a vespagram', &
          '   of (t,s,amp) triplets to stdout', &
          'Arguments:', &
@@ -84,7 +87,6 @@ contains
          '   -n [n]       : For nthroot or phaseweighted, use root n', &
          '   -o [file]    : Output a NetCDF file instead of writing to stdout', &
          '   -p           : Use picks in column 2 of input', &
-         '   -t [t1] [t2] : Use range of times (relative to picks if provided)', &
          '   -type [type] : Choose from the following stack types:', &
          '        [l]inear, [p]haseweighted, [n]throot'
       error stop
@@ -141,6 +143,7 @@ contains
 
    subroutine write_netcdf_file
       integer :: ncid, t_dimid, s_dimid, t_varid, s_varid, a_varid
+      character(len=250) :: comment
 
       call check_ncf(nf90_create(trim(file), NF90_CLOBBER, ncid))
 
@@ -165,8 +168,9 @@ contains
       ! Add comments about data
       call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'title', &
          'Slowness vespagram created by stack_vespa'))
-      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'comment', &
-         'Stack_type: ' // trim(type)))
+      write(comment, '(5(a,f0.6))') 'Stack_type: ' // trim(type) // ' Mean_lon: ', lon, &
+         ' Mean_lat: ', lat, ' Mean_gcarc: ', gcarc, ' Mean_baz: ', baz, ' evdp: ', evdp
+      call check_ncf(nf90_put_att(ncid, NF90_GLOBAL, 'source', trim(comment)))
       ! Finish data description
       call check_ncf(nf90_enddef(ncid))
 
