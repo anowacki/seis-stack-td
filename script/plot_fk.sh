@@ -17,7 +17,7 @@ usage() {
 	
 	Usage for stack_fk
 	------------------
-	$(stack_fk 2>&1)
+	$(stack_fk -h 2>&1)
 	END
 	exit 1
 }
@@ -57,6 +57,7 @@ while [ "$1" ]; do
 		-annot) name_list=("${name_list[@]}" "$2")
 		        slow_list=("${slow_list[@]}" "$3")
 		        baz_list=("${baz_list[@]}" "$4"); shift 4;;
+		-h) usage;;
 		# Arguments passed to stack_fk are anything we don't know about
 		*) break;;
 	esac
