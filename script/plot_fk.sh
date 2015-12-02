@@ -9,11 +9,14 @@ usage() {
 	for the plotting script.
 	
 	Options:
+	   -batch                     : Batch mode; don't show plot.
 	   -annot [name] [slow] [baz] : Add an annotation at slowness slow
 	                  and backazimuth baz.  _s in name will be replaced by spaces
 	                  in plotting.
+	   -save [file]               : Save figure to <file>.
 	   -phase [phase1(,phase2)]   : Plot phases using the event-array geography.
 	                  Quote the list and add "-mod [model]" to change model.
+	   -title [title]             : Add title to plot.
 	
 	Usage for stack_fk
 	------------------
@@ -49,14 +52,20 @@ plot_annot_cross() {
 	echo $xy 10 0 0 BL "$3" | pstext -J -R -D0.2c/0.2c -O -K >> "$FIG"
 }
 
+# Defaults
+title="Beam power"
+
 # Process arguments
 while [ "$1" ]; do
 	case "$1" in
 		# Arguments the script knows about
+		-batch) batch=1; shift;;
 		-phase) phases="$2"; shift 2;;
 		-annot) name_list=("${name_list[@]}" "$2")
 		        slow_list=("${slow_list[@]}" "$3")
 		        baz_list=("${baz_list[@]}" "$4"); shift 4;;
+		-save) outfile="$2"; shift 2;;
+		-title) title="$2"; shift 2;;
 		-h) usage;;
 		# Arguments passed to stack_fk are anything we don't know about
 		*) break;;
@@ -88,7 +97,7 @@ makecpt -Z -Chaxby -I -T0/1/0.05 > "$CPT" 2>/dev/null
 
 # Plot power
 grdimage "$GRD" -JX8c/8c -R$smin/$smax/$smin/$smax -C"$CPT" -P -K \
-	-Ba$ls":@%2%u@-x@-@%% / s/deg:"/a$ls":@%2%u@-y@-@%% / s/deg:"":.Beam power:"nSeW > "$FIG" &&
+	-Ba$ls":@%2%u@-x@-@%% / s/deg:"/a$ls":@%2%u@-y@-@%% / s/deg:"":.$title:"nSeW > "$FIG" &&
 
 # Add phase arrivals using taup if available
 if [ "$phases" ]; then
@@ -120,10 +129,14 @@ awk -v smax=$smax 'BEGIN {
 	}' | psxy -J -R -m -W0.5p,- -O -K >> "$FIG"
 
 # Add plot information at the top
-printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f\n" -$smax $smax $gcarc $baz |
+read u_max baz_max <<< $(grd2xyz "$GRD" |
+	awk '$3>=1{print sqrt($1^2+$2^2), (45/atan2(1,1)*atan2($1,$2)+3600)%360}')
+printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f  max (|@%%2%%u@%%%%|, baz) = (%0.2f, %0.1f)\n" \
+		-$smax $smax $gcarc $baz $u_max $baz_max |
 	pstext -J -R -D0c/0.2c -N -O -K >> "$FIG"
 
 # Finish off postscript
 psxy -J -R -T -O >> "$FIG"
 
-gv "$FIG"
+[ "$outfile" ] && cp "$FIG" "$outfile"
+[ ! "$batch" ] && gv "$FIG"
