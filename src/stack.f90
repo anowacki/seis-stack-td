@@ -505,21 +505,21 @@ function stack_hilbert(y, n, npts) result(h)
    integer :: i
 
    ! Create plans, which we can reuse if we use the same arrays
-   call sfftw_plan_dft_r2c_1d(plan_fwd, int(npts, kind=C_INT), y_temp, c, fftw_plan_type)
-   call sfftw_plan_dft_c2r_1d(plan_rev, int(npts, kind=C_INT), c, h_temp, fftw_plan_type)
+   plan_fwd = fftwf_plan_dft_r2c_1d(int(npts, kind=C_INT), y_temp, c, fftw_plan_type)
+   plan_rev = fftwf_plan_dft_c2r_1d(int(npts, kind=C_INT), c, h_temp, fftw_plan_type)
    ! Make Hilbert traces by multiplying the frequency-domain complex traces by -i
    do i = 1, n
       y_temp = y(:,i)
-      call sfftw_execute_dft_r2c(plan_fwd, y_temp, c)
+      call fftwf_execute_dft_r2c(plan_fwd, y_temp, c)
       c = c*complex(0._rs, -1._rs)
-      call sfftw_execute_dft_c2r(plan_rev, c, h_temp)
+      call fftwf_execute_dft_c2r(plan_rev, c, h_temp)
       h(:,i) = h_temp
    enddo
    ! Normalise values back to original amplitude
    h = h/real(npts)
    ! Deassociate pointers
-   call sfftw_destroy_plan(plan_fwd)
-   call sfftw_destroy_plan(plan_rev)
+   call fftwf_destroy_plan(plan_fwd)
+   call fftwf_destroy_plan(plan_rev)
 end function stack_hilbert
 !-------------------------------------------------------------------------------
 
