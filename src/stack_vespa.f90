@@ -19,7 +19,7 @@ program stack_vespa_prog
    real(C_FLOAT), allocatable :: vesp(:,:), time(:), slowness(:)
    real(C_FLOAT) :: lon, lat, gcarc, baz, evdp
    integer :: i, j, n, iostat, n_stack, nt, ns
-   logical :: use_picks = .false., write_ncf = .false.
+   logical :: envelope = .false., use_picks = .false., write_ncf = .false.
 
    call get_args
 
@@ -51,11 +51,11 @@ program stack_vespa_prog
 
    ! Make vespagram
    if (use_picks) then
-      call stack_vespa_slow(s(1:n), t1, t2, s1, s2, ds, vesp, time=time, &
-         slowness=slowness, type=type, n=n_stack, pick=picks(1:n))
+      call stack_vespa_slow(s(1:n), t1, t2, s1, s2, ds, vesp, envelope=envelope, &
+         time=time, slowness=slowness, type=type, n=n_stack, pick=picks(1:n))
    else
-      call stack_vespa_slow(s(1:n), t1, t2, s1, s2, ds, vesp, time=time, &
-         slowness=slowness, type=type, n=n_stack)
+      call stack_vespa_slow(s(1:n), t1, t2, s1, s2, ds, vesp, envelope=envelope, &
+         time=time, slowness=slowness, type=type, n=n_stack)
    endif
 
    nt = size(time)
@@ -84,6 +84,7 @@ contains
          '   s1, s2, ds   : Min and max slownesses and slowness increment (s/deg)', &
          '   t1, t2       : Time window start and end relative to O marker (s)', &
          'Options:', &
+         '   -e           : Output the stack envelope', &
          '   -n [n]       : For nthroot or phaseweighted, use root n', &
          '   -o [file]    : Output a NetCDF file instead of writing to stdout', &
          '   -p           : Use picks in column 2 of input', &
@@ -101,6 +102,9 @@ contains
       do while (iarg < narg - 4)
          call get_command_argument(iarg, arg)
          select case (arg)
+            case ('-e')
+               envelope = .true.
+               iarg = iarg + 1
             case ('-n')
                call get_command_argument(iarg + 1, arg)
                read(arg,*) n_stack

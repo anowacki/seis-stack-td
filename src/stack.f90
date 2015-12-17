@@ -134,8 +134,8 @@ end subroutine stack_fk
 !-------------------------------------------------------------------------------
 
 !===============================================================================
-subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
-                            slowness)
+subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, envelope, &
+                            time, slowness)
 !===============================================================================
 ! Take an array of SAC traces and return the slowness vespagram.  This is done
 ! relative to the geographic mean point of the array, using the backazimuth from
@@ -150,6 +150,7 @@ subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
 !               must be an array of size(s)
 !     type    : Character determining stack type.  See stack_sum() for details.
 !     n       : Power of the stack; see stack_sum() for details.
+!     envelope: If .true., convert stack sum into envelope.
 !  OUTPUT:
 !     out(:,:): Alloctable array of size((t2 - t1)/s(1)%delta+1, (s2-s1)/ds+1)
 !               containing the normalised beam power at each (s,t) point.
@@ -165,6 +166,7 @@ subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
    real(rs), intent(in), optional :: pick(size(s))
    character(len=*), intent(in), optional :: type
    integer, intent(in), optional :: n
+   logical, optional, intent(in) :: envelope
    real(rs), allocatable, intent(inout), optional :: time(:), slowness(:)
    type(SACtrace) :: trace
    real(rs) :: pick_in(size(s)), delay(size(s))
@@ -230,6 +232,11 @@ subroutine stack_vespa_slow(s, t1, t2, s1, s2, ds, out, pick, type, n, time, &
    if (present(slowness)) then
       call stack_allocate(slowness, ns)
       slowness = [(s1 + real(i-1)*ds, i = 1, ns)]
+   endif
+
+   ! Output envelope if desired
+   if (present(envelope)) then
+      if (envelope) call stack_envelope(out)
    endif
 
    ! Normalise vespagram
@@ -521,6 +528,20 @@ function stack_hilbert(y, n, npts) result(h)
    call fftwf_destroy_plan(plan_fwd)
    call fftwf_destroy_plan(plan_rev)
 end function stack_hilbert
+!-------------------------------------------------------------------------------
+
+!===============================================================================
+subroutine stack_envelope(s)
+!===============================================================================
+! Replace the input set of traces s(npts,n) with their envelope.
+!
+   real(rs), intent(inout) :: s(:,:)
+   integer :: npts, n
+
+   npts = size(s, 1)
+   n = size(s, 2)
+   s = sqrt(s**2 + stack_hilbert(s, n, npts)**2)
+end subroutine stack_envelope
 !-------------------------------------------------------------------------------
 
 !===============================================================================
