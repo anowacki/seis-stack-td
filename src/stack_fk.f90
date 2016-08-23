@@ -75,8 +75,8 @@ contains
    subroutine usage
       write(0,'(a)') &
          'Usage: stack_fk [t1] [t2] [smax] [ds] (options) < (list of SAC files (pick times))', &
-         '   Read a list of SAC files on stdin and write a vespagram', &
-         '   of (t,s,amp) triplets to stdout', &
+         '   Read a list of SAC files on stdin and write a frequency-wavenumber stack of', &
+         '   (u_x, u_y, power) triplets to stdout', &
          'Arguments:', &
          '   smax, ds     : Max slownesses and slowness increment (s/deg)', &
          '   t1, t2       : Time window start and end relative to O marker (s)', &
