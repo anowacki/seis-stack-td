@@ -1,5 +1,5 @@
 FC = gfortran
-FFLAGS = -g -O2 -fcheck=all -fbacktrace
+FFLAGS = -g -O2 -fcheck=all
 LDFLAGS = 
 
 # Use OpenMP
