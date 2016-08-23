@@ -72,6 +72,8 @@ while [ "$1" ]; do
 	esac
 done
 
+[ $# -eq 0 ] && usage
+
 # Check we're not trying to use to -o option
 for arg in "$@"; do
 	[ "$arg" = "-o" ] && { echo "Do not use option '-o' with plotting script"; usage; }
