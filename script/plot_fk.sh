@@ -118,13 +118,14 @@ done
 # Plot circles for slowness and lines for azimuth
 awk -v smax=$smax 'BEGIN {
 	pi = 4*atan2(1,1)
-	for (r=2; r<=smax*sqrt(2); r+=2) {
+	SMAX = smax*sqrt(2)
+	for (r=2; r<=SMAX; r+=2) {
 		print ">"
 		for (theta=0; theta<=2*pi; theta+=pi/180) print r*sin(theta), r*cos(theta)
 	}
 	for (theta=0; theta<2*pi; theta+=pi/6) {
 		print ">"
-		for (r=0; r<=100; r+=100) print r*sin(theta), r*cos(theta)
+		for (r=0; r<=SMAX; r+=SMAX) print r*sin(theta), r*cos(theta)
 	}
 	}' | psxy -J -R -m -W0.5p,- -O -K >> "$FIG"
 
@@ -139,4 +140,4 @@ printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f  max (|@%%2%%u@%%%%|, baz) = 
 psxy -J -R -T -O >> "$FIG"
 
 [ "$outfile" ] && cp "$FIG" "$outfile"
-[ ! "$batch" ] && gv "$FIG"
+[ ! "$batch" ] && gv "$FIG" || true

@@ -124,4 +124,4 @@ printf "%f %f 10 0 0 BL @~D@~ = %0.1f@~\\260@~  baz = %0.1f@~\\260@~\n" $t1 $s2 
 psxy -J -R -T -O >> "$FIG"
 
 [ "$outfile" ] && cp "$FIG" "$outfile"
-[ ! "$batch" ] && gv "$FIG"
+[ ! "$batch" ] && gv "$FIG" || true
