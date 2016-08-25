@@ -20,6 +20,11 @@ program stack_fk_prog
    real(C_FLOAT) :: lon, lat, gcarc, baz, evdp
    integer :: i, j, n, iostat, n_stack, nu
    logical :: use_picks = .false., write_ncf = .false.
+#ifdef USE_XAPIIR
+   real(C_FLOAT) :: corner1, corner2
+   integer :: poles, passes
+   character(len=4) :: filter = 'none'
+#endif
 
    call get_args
 
@@ -46,6 +51,7 @@ program stack_fk_prog
          error stop
       endif
       call f90sac_readtrace(infile, s(n))
+      call filter_trace(s(n))
       if (use_picks) picks(n) = pick_temp
    enddo
 
@@ -81,6 +87,15 @@ contains
          '   smax, ds     : Max slownesses and slowness increment (s/deg)', &
          '   t1, t2       : Time window start and end relative to O marker (s)', &
          'Options:', &
+#ifdef USE_XAPIIR
+         '   -bp [c1] [c2] [poles] [npasses] :', &
+         '                  Perform band-pass filter between corners <c1> and <c2>,', &
+         '                  specifying number of poles and passes, before stacking', &
+         '   -hp [corner] [poles] [npasses]:', &
+         '                  High-pass filter before stacking', &
+         '   -lp [corner] [poles] [npasses]:', &
+         '                  Low-pass filter before stacking', &
+#endif
          '   -n [n]       : For nthroot or phaseweighted, use power n', &
          '   -o [file]    : Output a NetCDF file instead of writing to stdout', &
          '   -p           : Use picks in column 2 of input', &
@@ -98,6 +113,37 @@ contains
       do while (iarg < narg - 3)
          call get_command_argument(iarg, arg)
          select case (arg)
+#ifdef USE_XAPIIR
+            case ('-bp')
+               filter = 'bp'
+               call get_command_argument(iarg + 1, arg)
+               read(arg,*) corner1
+               call get_command_argument(iarg + 2, arg)
+               read(arg,*) corner2
+               call get_command_argument(iarg + 3, arg)
+               read(arg,*) poles
+               call get_command_argument(iarg + 4, arg)
+               read(arg,*) passes
+               iarg = iarg + 5
+            case ('-lp')
+               filter = 'lp'
+               call get_command_argument(iarg + 1, arg)
+               read(arg,*) corner1
+               call get_command_argument(iarg + 2, arg)
+               read(arg,*) poles
+               call get_command_argument(iarg + 3, arg)
+               read(arg,*) passes
+               iarg = iarg + 4
+            case ('-hp')
+               filter = 'hp'
+               call get_command_argument(iarg + 1, arg)
+               read(arg,*) corner1
+               call get_command_argument(iarg + 2, arg)
+               read(arg,*) poles
+               call get_command_argument(iarg + 3, arg)
+               read(arg,*) passes
+               iarg = iarg + 4
+#endif
             case ('-n')
                call get_command_argument(iarg + 1, arg)
                read(arg,*) n_stack
@@ -177,5 +223,21 @@ contains
       ! Finalise file
       call check_ncf(nf90_close(ncid))
    end subroutine write_netcdf_file
+
+   subroutine filter_trace(trace)
+      type(SACtrace), intent(inout) :: trace
+#ifdef USE_XAPIIR
+      select case (filter)
+         case ('none')
+            return
+         case ('bp')
+            call f90sac_bandpass_bu(trace, corner1, corner2, npoles=poles, npasses=passes)
+         case ('hp')
+            call f90sac_highpass_bu(trace, corner1, npoles=poles, npasses=passes)
+         case ('lp')
+            call f90sac_lowpass_bu(trace, corner1, npoles=poles, npasses=passes)
+      end select
+#endif
+   end subroutine filter_trace
 
 end program stack_fk_prog

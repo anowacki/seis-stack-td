@@ -15,7 +15,11 @@ LDFLAGS += $(LIB)
 # Flags for NetCDF
 LIB += -lnetcdff
 
+# Default defines
 DEFS = -DFORCE_BIGENDIAN_SACFILES
+
+# SAC's XAPIIR filtering library
+LIB_XAPIIR = -L/usr/local/lib -lxapiir
 
 B = bin
 O = obj
@@ -33,6 +37,11 @@ MODS = \
 default: progs
 
 progs: $(PROGS)
+
+# `make filt` builds programs to include filtering
+filt: DEFS += -DUSE_XAPIIR
+filt: LIB += $(LIB_XAPIIR)
+filt: default
 
 # Programs
 $B/%: $(MODS) $(OBJS) $O/%.o
