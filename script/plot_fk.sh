@@ -92,13 +92,19 @@ ls=2
 stack_fk -o "$GRD" "$@" || { echo "Error running stack_fk" >&2; exit 1; }
 
 # Get info from grid file
-read gcarc baz evdp smin smax ds <<< $(grdinfo "$GRD" |
-	awk '/Command:/{print $(NF-4),$(NF-2),$NF}
-         /x_min/{print $3,$5,$7}')
+read gcarc baz evdp sxmin sxmax symin symax ds smax <<< $(grdinfo "$GRD" |
+	awk 'function abs(x){return x < 0 ? -x : x}
+         /Command:/{print $(NF-4),$(NF-2),$NF}
+         /x_min/{print $3,$5; sxmin=$3; sxmax=$5}
+         /y_min/{print $3,$5,$7; symin=$3; symax=$5}
+         END{xmax = abs(sxmin) > abs(sxmax) ? abs(sxmin) : abs(sxmax)
+             ymax = abs(symin) > abs(symax) ? abs(symin) : abs(symax)
+			 if (xmax > ymax) print xmax; else print ymax
+         }')
 makecpt -Z -Chaxby -I -T0/1/0.05 > "$CPT" 2>/dev/null
 
 # Plot power
-grdimage "$GRD" -JX8c/8c -R$smin/$smax/$smin/$smax -C"$CPT" -P -K \
+grdimage "$GRD" -JX8c/8c -R$sxmin/$sxmax/$symin/$symax -C"$CPT" -P -K \
 	-Ba$ls":@%2%u@-x@-@%% / s/deg:"/a$ls":@%2%u@-y@-@%% / s/deg:"":.$title:"nSeW > "$FIG" &&
 
 # Add phase arrivals using taup if available
@@ -135,7 +141,7 @@ awk -v smax=$smax 'BEGIN {
 read u_max baz_max <<< $(grd2xyz "$GRD" |
 	awk '$3>=1{print sqrt($1^2+$2^2), (45/atan2(1,1)*atan2($1,$2)+3600)%360}')
 printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f  max (|@%%2%%u@%%%%|, baz) = (%0.2f, %0.1f)\n" \
-		-$smax $smax $gcarc $baz $u_max $baz_max |
+		$sxmin $symax $gcarc $baz $u_max $baz_max |
 	pstext -J -R -D0c/0.2c -N -O -K >> "$FIG"
 
 # Finish off postscript

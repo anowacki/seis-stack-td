@@ -44,14 +44,17 @@ module stack
 contains
 
 !===============================================================================
-subroutine stack_fk(s, t1, t2, smax, ds, out, pick, type, n, u)
+subroutine stack_fk(s, t1, t2, sxmin, sxmax, symin, symax, ds, out, pick, type, n, ux, uy)
 !===============================================================================
 ! Perform f-k analysis on an array of SAC traces.  Search over a range of
 ! slowness vectors with maximum magnitude smax in ds increments.
 !  INPUT:
 !     s(:)    : SACtrace array of input traces
 !     t1, t2  : Start and stop time window in s
-!     smax    : Maximum slowness magnitude in s/deg
+!     sxmin   : Minimum slowness in x direction in s/deg
+!     sxmax   : Maximum slowness in x direction in s/deg
+!     symin   : Minimum slowness in y direction in s/deg
+!     symax   : Maximum slowness in y direction in s/deg
 !     ds      : Slowness increment in s/deg
 !  INPUT (OPTIONAL):
 !     pick(:) : Array of pick times relative to which vespagram is made
@@ -62,26 +65,28 @@ subroutine stack_fk(s, t1, t2, smax, ds, out, pick, type, n, u)
 !               containing the normalised beam power at each point over the time
 !               window of interest, which is the summed squared amplitudes.
 !  OUTPUT (OPTIONAL):
-!     u(:)    : Allocatable array containing the values of slowness in both
-!               x and y directions.
+!     ux(:)   : Allocatable array containing the values of slowness in the x direction
+!     uy(:)   : Allocatable array containing the values of slowness in the y direction
 !
    type(SACtrace), intent(in) :: s(:)
-   real(rs), intent(in) :: t1, t2, smax, ds
+   real(rs), intent(in) :: t1, t2, sxmin, sxmax, symin, symax, ds
    real(rs), allocatable, intent(inout) :: out(:,:)
    real(rs), intent(in), optional, dimension(size(s)) :: pick
    character(len=*), intent(in), optional :: type
    integer, intent(in), optional :: n
-   real(rs), intent(out), allocatable, optional :: u(:)
+   real(rs), intent(out), allocatable, optional :: ux(:), uy(:)
    type(SACtrace) :: trace
    real(rs), dimension(size(s)) :: pick_in, x, y, r, phi, delay
    character(len=STACK_CHAR_LEN) :: type_in
-   real(rs) :: lon, lat, ux, uy
-   integer :: i, ix, iy, n_in, nu
+   real(rs) :: lon, lat, uxi, uyi
+   integer :: i, ix, iy, n_in, nx, ny
 
    ! Basic checks on input
    call stack_check(s)
 
    if (t2 <= t1) call stack_error('stack_fk: Start time must be before end time')
+   if (sxmin >= sxmax) call stack_error('stack_fk: Minimum sx must be less than maximum')
+   if (symin >= symax) call stack_error('stack_fk: Minimum sy must be less than maximum')
    if (present(pick)) then
       if (size(pick) /= size(s)) &
          call stack_error('stack_fk: Pick array must be same length as number of traces')
@@ -106,17 +111,18 @@ subroutine stack_fk(s, t1, t2, smax, ds, out, pick, type, n, u)
    call stack_calc_station_coords(s%stlo, s%stla, lon, lat, x, y, r, phi)
 
    ! Calculate size of output and allocate
-   nu = int(2.*smax/ds) + 1
-   call stack_allocate(out, nu, nu)
+   nx = int((sxmax - sxmin)/ds) + 1
+   ny = int((symax - symin)/ds) + 1
+   call stack_allocate(out, nx, ny)
 
    ! Create stack at each slowness point
-   do iy = 1, nu
-      uy = real(iy-1)*ds - smax
-      uy = uy*s_deg2s_km
-      do ix = 1, nu
-         ux = real(ix-1)*ds - smax
-         ux = ux*s_deg2s_km
-         delay = pick_in - stack_station_delay(x, y, ux, uy)
+   do iy = 1, ny
+      uyi = symin + real(iy-1)*ds
+      uyi = uyi*s_deg2s_km
+      do ix = 1, nx
+         uxi = sxmin + real(ix-1)*ds
+         uxi = uxi*s_deg2s_km
+         delay = pick_in - stack_station_delay(x, y, uxi, uyi)
          call stack_sum(s, trace, t1=t1, t2=t2, delay=delay, type=type_in, n=n_in)
          out(ix,iy) = sum(trace%trace**2)
       enddo
@@ -124,10 +130,14 @@ subroutine stack_fk(s, t1, t2, smax, ds, out, pick, type, n, u)
 
    out = out/maxval(out)
 
-   ! If requested, fill in the slowness axis
-   if (present(u)) then
-      call stack_allocate(u, nu)
-      u = [(real(i-1)*ds - smax, i = 1, nu)]
+   ! If requested, fill in the slowness axes
+   if (present(ux)) then
+      call stack_allocate(ux, nx)
+      ux = [(sxmin + real(i-1)*ds, i = 1, nx)]
+   endif
+   if (present(uy)) then
+      call stack_allocate(uy, ny)
+      uy = [(symin + real(i-1)*ds, i = 1, ny)]
    endif
 
 end subroutine stack_fk

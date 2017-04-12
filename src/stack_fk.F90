@@ -15,10 +15,10 @@ program stack_fk_prog
    integer, parameter :: nmax = 1000
    character(len=250) :: infile, file, type = 'linear'
    type(SACtrace) :: s(nmax)
-   real(C_FLOAT) :: picks(nmax), pick_temp, t1, t2, smax, ds
-   real(C_FLOAT), allocatable :: fk(:,:), u(:)
+   real(C_FLOAT) :: picks(nmax), pick_temp, t1, t2, sxmin, sxmax, symin, symax, ds
+   real(C_FLOAT), allocatable :: fk(:,:), ux(:), uy(:)
    real(C_FLOAT) :: lon, lat, gcarc, baz, evdp
-   integer :: i, j, n, iostat, n_stack, nu
+   integer :: i, j, n, iostat, n_stack, nx, ny
    logical :: use_picks = .false., write_ncf = .false.
 #ifdef USE_XAPIIR
    real(C_FLOAT) :: corner1, corner2
@@ -57,12 +57,15 @@ program stack_fk_prog
 
    ! Make vespagram
    if (use_picks) then
-      call stack_fk(s(1:n), t1, t2, smax, ds, fk, u=u, type=type, n=n_stack, pick=picks(1:n))
+      call stack_fk(s(1:n), t1, t2, sxmin, sxmax, symin, symax, ds, fk, ux=ux, uy=uy, &
+         type=type, n=n_stack, pick=picks(1:n))
    else
-      call stack_fk(s(1:n), t1, t2, smax, ds, fk, u=u, type=type, n=n_stack)
+      call stack_fk(s(1:n), t1, t2, sxmin, sxmax, symin, symax, ds, fk, ux=ux, uy=uy, &
+         type=type, n=n_stack)
    endif
 
-   nu = size(u)
+   nx = size(ux)
+   ny = size(uy)
 
    ! Write out stack
    if (write_ncf) then
@@ -70,9 +73,9 @@ program stack_fk_prog
       call stack_array_geography(s(1:n), lon, lat, gcarc, baz, evdp)
       call write_netcdf_file
    else
-      do i = 1, nu
-         do j = 1, nu
-            write(*,*) u(j), u(i), fk(j, i)
+      do i = 1, ny
+         do j = 1, nx
+            write(*,*) ux(j), uy(i), fk(j, i)
          enddo
       enddo
    endif
@@ -80,12 +83,14 @@ program stack_fk_prog
 contains
    subroutine usage
       write(0,'(a)') &
-         'Usage: stack_fk (options) [t1] [t2] [smax] [ds] < (list of SAC files (pick times))', &
+         'Usage: stack_fk (options) [t1] [t2] [sxmin] [sxmax] [symin] [symax] [ds] < (list of SAC files (pick times))', &
          '   Read a list of SAC files on stdin and write a frequency-wavenumber stack of', &
-         '   (u_x, u_y, power) triplets to stdout', &
+         '   (ux, uy, power) triplets to stdout', &
          'Arguments:', &
-         '   smax, ds     : Max slownesses and slowness increment (s/deg)', &
          '   t1, t2       : Time window start and end relative to O marker (s)', &
+         '   sxmin, sxmax : Range of slowness to search in east direction (s/deg)', &
+         '   symin, symax : Range of slowness to search in north direction (s/deg)', &
+         '   ds           : Slowness increment (s/deg)', &
          'Options:', &
 #ifdef USE_XAPIIR
          '   -bp [c1] [c2] [poles] [npasses] :', &
@@ -108,9 +113,9 @@ contains
       integer :: iarg, narg
       character(len=250) :: arg
       narg = command_argument_count()
-      if (narg < 4) call usage
+      if (narg < 7) call usage
       iarg = 1
-      do while (iarg < narg - 3)
+      do while (iarg < narg - 6)
          call get_command_argument(iarg, arg)
          select case (arg)
 #ifdef USE_XAPIIR
@@ -163,12 +168,18 @@ contains
                error stop
          end select
       enddo
-      call get_command_argument(narg - 3, arg)
+      call get_command_argument(narg - 6, arg)
       read(arg,*) t1
-      call get_command_argument(narg - 2, arg)
+      call get_command_argument(narg - 5, arg)
       read(arg,*) t2
+      call get_command_argument(narg - 4, arg)
+      read(arg,*) sxmin
+      call get_command_argument(narg - 3, arg)
+      read(arg,*) sxmax
+      call get_command_argument(narg - 2, arg)
+      read(arg,*) symin
       call get_command_argument(narg - 1, arg)
-      read(arg,*) smax
+      read(arg,*) symax
       call get_command_argument(narg, arg)
       read(arg,*) ds
    end subroutine get_args
@@ -189,8 +200,8 @@ contains
       call check_ncf(nf90_create(trim(file), NF90_CLOBBER, ncid))
 
       ! Define dimensions
-      call check_ncf(nf90_def_dim(ncid, 'ux', nu, ux_dimid))
-      call check_ncf(nf90_def_dim(ncid, 'uy', nu, uy_dimid))
+      call check_ncf(nf90_def_dim(ncid, 'ux', nx, ux_dimid))
+      call check_ncf(nf90_def_dim(ncid, 'uy', ny, uy_dimid))
       ! Set variables for coordinates
       call check_ncf(nf90_def_var(ncid, 'ux', NF90_FLOAT, ux_dimid, ux_varid))
       call check_ncf(nf90_def_var(ncid, 'uy', NF90_FLOAT, uy_dimid, uy_varid))
@@ -198,8 +209,8 @@ contains
       call check_ncf(nf90_put_att(ncid, uy_varid, 'units', 's/deg'))
       call check_ncf(nf90_put_att(ncid, ux_varid, 'long_name', 'Slowness E'))
       call check_ncf(nf90_put_att(ncid, uy_varid, 'long_name', 'Slowness N'))
-      call check_ncf(nf90_put_att(ncid, ux_varid, 'actual_range', [-smax, smax]))
-      call check_ncf(nf90_put_att(ncid, uy_varid, 'actual_range', [-smax, smax]))
+      call check_ncf(nf90_put_att(ncid, ux_varid, 'actual_range', [sxmin, sxmax]))
+      call check_ncf(nf90_put_att(ncid, uy_varid, 'actual_range', [symin, symax]))
       call check_ncf(nf90_def_var(ncid, 'power', NF90_FLOAT, [ux_dimid, uy_dimid], &
          a_varid))
       ! Set variables for amplitude
@@ -216,8 +227,8 @@ contains
       call check_ncf(nf90_enddef(ncid))
 
       ! Fill structure
-      call check_ncf(nf90_put_var(ncid, ux_varid, u))
-      call check_ncf(nf90_put_var(ncid, uy_varid, u))
+      call check_ncf(nf90_put_var(ncid, ux_varid, ux))
+      call check_ncf(nf90_put_var(ncid, uy_varid, uy))
       call check_ncf(nf90_put_var(ncid, a_varid, fk))
 
       ! Finalise file
