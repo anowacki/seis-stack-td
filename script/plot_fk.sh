@@ -13,6 +13,7 @@ usage() {
 	   -annot [name] [slow] [baz] : Add an annotation at slowness slow
 	                  and backazimuth baz.  _s in name will be replaced by spaces
 	                  in plotting.
+	   -max                       : Mark the location of the maximum power
 	   -save [file]               : Save figure to <file>.
 	   -phase [phase1(,phase2)]   : Plot phases using the event-array geography.
 	                  Quote the list and add "-mod [model]" to change model.
@@ -64,6 +65,7 @@ while [ "$1" ]; do
 		-annot) name_list=("${name_list[@]}" "$2")
 		        slow_list=("${slow_list[@]}" "$3")
 		        baz_list=("${baz_list[@]}" "$4"); shift 4;;
+		-max) mark_max=1; shift;;
 		-save) outfile="$2"; shift 2;;
 		-title) title="$2"; shift 2;;
 		-h) usage;;
@@ -114,7 +116,8 @@ if [ "$phases" ]; then
 	list=$(taup_time -ph $phases -h $evdp -deg $gcarc | awk 'NR>=6')
 	echo "$list" | while read gcarc_taup evdp_taup phase time slowness takeoff incident \
 			distance blank pure_name; do
-		plot_annot_cross $slowness $baz $phase
+		local_baz=$(echo $distance $baz | awk '{if ($1 > 180) $2=($2+180)%360; print $2}')
+		plot_annot_cross $slowness $local_baz $phase
 	done
 fi
 
@@ -138,11 +141,16 @@ awk -v smax=$smax 'BEGIN {
 	}' | psxy -J -R -m -W0.5p,- -O -K >> "$FIG"
 
 # Add plot information at the top
-read u_max baz_max <<< $(grd2xyz "$GRD" |
-	awk '$3>=1{print sqrt($1^2+$2^2), (45/atan2(1,1)*atan2($1,$2)+3600)%360}')
+read u_max baz_max sx_max sy_max <<< $(grd2xyz "$GRD" |
+	awk '$3>=1{print sqrt($1^2+$2^2), (45/atan2(1,1)*atan2($1,$2)+3600)%360, $1, $2}')
 printf "%f %f 10 0 0 BL @~D@~ = %0.1f  baz = %0.1f  max (|@%%2%%u@%%%%|, baz) = (%0.2f, %0.1f)\n" \
 		$sxmin $symax $gcarc $baz $u_max $baz_max |
 	pstext -J -R -D0c/0.2c -N -O -K >> "$FIG"
+
+# Mark location of max power if requested
+if [ "$mark_max" ]; then
+	echo $sx_max $sy_max | psxy -J -R -O -K -Sc0.2c -Gorange -W0.75p,white >> "$FIG"
+fi
 
 # Finish off postscript
 psxy -J -R -T -O >> "$FIG"
