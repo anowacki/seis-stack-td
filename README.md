@@ -6,8 +6,8 @@ Andy Nowacki, University of Leeds <a.nowacki@leeds.ac.uk>
 A set of Fortran programs to compute vespagrams and f-k spectra for broadband
 seismic data in SAC format.
 
-The computations are all done in the time domain, making these routines very
-slow.  They are recommended only for educational purposes (and were written for
+The computations are all done in the time domain, making these routines somewhat
+slow.  They are recommended for educational purposes (and were written for
 that reason).
 
 
@@ -50,7 +50,7 @@ Licence
 
 This software is distributed under the terms of the three-clause BSD licence:
 
-Copyright (c) 2016-17, Andy Nowacki
+Copyright (c) 2016-18, Andy Nowacki
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
