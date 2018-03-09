@@ -467,7 +467,7 @@ subroutine stack_sum_phaseweighted(s, pick, delay, w1, w2, nu, npts, out)
 !$omp    private(i, j, weight)
    do i = 1, n
       do j = 1, npts
-         weight = sum(abs(phase(j,:))/real(n))
+         weight = abs(sum(exp(phase(j,:)))/real(n))
          out(j) = out(j) + trace(j,i)*weight**nu
       enddo
    enddo
