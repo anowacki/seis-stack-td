@@ -106,7 +106,7 @@ read gcarc baz evdp sxmin sxmax symin symax ds smax <<< $(grdinfo "$GRD" |
 makecpt -Z -Chaxby -I -T0/1/0.05 > "$CPT" 2>/dev/null
 
 # Plot power
-grdimage "$GRD" -JX8c/8c -R$sxmin/$sxmax/$symin/$symax -C"$CPT" -P -K \
+grdimage "$GRD" -JX8c/ -R$sxmin/$sxmax/$symin/$symax -C"$CPT" -P -K \
 	-Ba$ls":@%2%u@-x@-@%% / s/deg:"/a$ls":@%2%u@-y@-@%% / s/deg:"":.$title:"nSeW > "$FIG" &&
 
 # Add phase arrivals using taup if available
