@@ -81,8 +81,14 @@ program stack_fk_prog
    endif
 
 contains
-   subroutine usage
-      write(0,'(a)') &
+   subroutine usage(error)
+      logical, optional, intent(in) :: error
+      integer :: lu_usage
+      lu_usage = 6 ! stdout
+      if (present(error)) then
+         if (error) lu_usage = 0
+      endif
+      write(lu_usage,'(a)') &
          'Usage: stack_fk (options) [t1] [t2] [sxmin] [sxmax] [symin] [symax] [ds] < (list of SAC files (pick times))', &
          '   Read a list of SAC files on stdin and write a frequency-wavenumber stack of', &
          '   (ux, uy, power) triplets to stdout', &
@@ -103,17 +109,31 @@ contains
 #endif
          '   -n [n]       : For nthroot or phaseweighted, use power n', &
          '   -o [file]    : Output a NetCDF file instead of writing to stdout', &
-         '   -p           : Use picks in column 2 of input', &
+         '   -p           : Align on picks in column 2 of input', &
          '   -type [type] : Choose from the following stack types:', &
-         '        [l]inear, [p]haseweighted, [n]throot'
-      error stop
+         '        [l]inear, [p]haseweighted, [n]throot', &
+         '   -h, --help   : Print this usage message to stdout and exit'
+         if (present(error)) then
+            if (error) error stop
+         else
+            stop
+         endif
    end subroutine usage
 
    subroutine get_args
       integer :: iarg, narg
       character(len=250) :: arg
       narg = command_argument_count()
-      if (narg < 7) call usage
+      if (narg == 1) then
+         call get_command_argument(1, arg)
+         if (trim(arg) == '-h' .or. trim(arg) == '--help') then
+            call usage()
+         else
+            call usage(error=.true.)
+         endif
+      elseif (narg < 7) then
+         call usage(error=.true.)
+      endif
       iarg = 1
       do while (iarg < narg - 6)
          call get_command_argument(iarg, arg)
@@ -149,6 +169,8 @@ contains
                read(arg,*) passes
                iarg = iarg + 4
 #endif
+            case ('-h', '--help')
+               call usage(error=.false.)
             case ('-n')
                call get_command_argument(iarg + 1, arg)
                read(arg,*) n_stack

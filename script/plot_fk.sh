@@ -21,7 +21,7 @@ usage() {
 	
 	Usage for stack_fk
 	------------------
-	$(stack_fk -h 2>&1)
+	$(stack_fk -h)
 	END
 	exit 1
 }
@@ -68,7 +68,7 @@ while [ "$1" ]; do
 		-max) mark_max=1; shift;;
 		-save) outfile="$2"; shift 2;;
 		-title) title="$2"; shift 2;;
-		-h) usage;;
+		-h|--help) usage;;
 		# Arguments passed to stack_fk are anything we don't know about
 		*) break;;
 	esac
